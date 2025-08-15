@@ -17,6 +17,7 @@ type WasmPluginDriver interface {
 }
 
 type wasmPluginDriver struct {
+	ctx       context.Context
 	wasmBytes []byte
 	runtime   wazero.Runtime
 	module    api.Module
@@ -25,21 +26,31 @@ type wasmPluginDriver struct {
 
 var _ WasmPluginDriver = (*wasmPluginDriver)(nil)
 
-func (d *wasmPluginDriver) Init(ctx context.Context) {
+func (d *wasmPluginDriver) Close() {
+	if d.runtime != nil {
+		if err := d.runtime.Close(d.ctx); err != nil {
+			log.Println("Failed to close runtime:", err)
+		}
+		d.runtime = nil
+		d.module = nil
+	}
+}
+func (d *wasmPluginDriver) Init() {
 	if d.runtime != nil && d.module != nil {
 		return // 已初始化
 	}
-	d.runtime = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
+	d.ctx = context.Background()
+	d.runtime = wazero.NewRuntimeWithConfig(d.ctx, wazero.NewRuntimeConfigInterpreter())
 	// 注册host函数
 	_, err := d.runtime.NewHostModuleBuilder("env").
 		NewFunctionBuilder().WithFunc(d.logString).Export("log").
-		Instantiate(ctx)
+		Instantiate(d.ctx)
 	if err != nil {
 		d.initErr = err
 		return
 	}
-	wasi_snapshot_preview1.MustInstantiate(ctx, d.runtime)
-	mod, err := d.runtime.InstantiateWithConfig(ctx, d.wasmBytes, wazero.NewModuleConfig().WithStartFunctions("_initialize"))
+	wasi_snapshot_preview1.MustInstantiate(d.ctx, d.runtime)
+	mod, err := d.runtime.InstantiateWithConfig(d.ctx, d.wasmBytes, wazero.NewModuleConfig().WithStartFunctions("_initialize"))
 	if err != nil {
 		d.initErr = err
 		return
@@ -98,7 +109,7 @@ func (d *wasmPluginDriver) Uploader(ctx context.Context, path []string, opt *fil
 }
 
 func (d *wasmPluginDriver) Name(ctx context.Context) string {
-	d.Init(ctx)
+	d.Init()
 	if d.initErr != nil {
 		log.Panicln(d.initErr)
 	}
