@@ -6,17 +6,21 @@ import (
 	"log"
 
 	"github.com/OpenListTeam/OpenList/v5/layers/file"
-	"github.com/dezhishen/DriverPlugin/model"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
+type WasmPluginDriver interface {
+	file.HostFileServer
+	Name(ctx context.Context) string
+}
+
 type wasmPluginDriver struct {
 	wasmBytes []byte
 }
 
-var _ model.Driver = (*wasmPluginDriver)(nil)
+var _ WasmPluginDriver = (*wasmPluginDriver)(nil)
 
 func (d *wasmPluginDriver) Init(ctx context.Context) {
 
@@ -72,8 +76,7 @@ func (d *wasmPluginDriver) Uploader(ctx context.Context, path []string, opt *fil
 	panic("unimplemented")
 }
 
-func (d *wasmPluginDriver) Name() string {
-	ctx := context.Background()
+func (d *wasmPluginDriver) Name(ctx context.Context) string {
 	r := wazero.NewRuntime(ctx)
 	defer r.Close(ctx)
 	// Instantiate a Go-defined module named "env" that exports a function to
