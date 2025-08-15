@@ -1,7 +1,6 @@
 package model
 
 import (
-	"context"
 	"log"
 )
 
@@ -11,9 +10,9 @@ func Registry(d Driver) {
 	_impl = d
 }
 
-func Name(ctx context.Context) string {
+func Name() string {
 	if _impl == nil {
 		log.Panicln("Driver plugin not registered")
 	}
-	return _impl.Name(ctx)
+	return _impl.Name()
 }

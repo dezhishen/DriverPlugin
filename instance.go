@@ -14,7 +14,6 @@ import (
 
 type wasmPluginDriver struct {
 	wasmBytes []byte
-	r         wazero.Runtime
 }
 
 var _ model.Driver = (*wasmPluginDriver)(nil)
@@ -73,7 +72,8 @@ func (d *wasmPluginDriver) Uploader(ctx context.Context, path []string, opt *fil
 	panic("unimplemented")
 }
 
-func (d *wasmPluginDriver) Name(ctx context.Context) string {
+func (d *wasmPluginDriver) Name() string {
+	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 	defer r.Close(ctx)
 	// Instantiate a Go-defined module named "env" that exports a function to
