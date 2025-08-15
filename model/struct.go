@@ -4,9 +4,9 @@ import (
 	"log"
 )
 
-var _impl Driver
+var _impl DriverPlugin
 
-func Registry(d Driver) {
+func Registry(d DriverPlugin) {
 	_impl = d
 }
 
