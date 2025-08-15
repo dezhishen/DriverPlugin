@@ -18,12 +18,33 @@ type WasmPluginDriver interface {
 
 type wasmPluginDriver struct {
 	wasmBytes []byte
+	runtime   wazero.Runtime
+	module    api.Module
+	initErr   error
 }
 
 var _ WasmPluginDriver = (*wasmPluginDriver)(nil)
 
 func (d *wasmPluginDriver) Init(ctx context.Context) {
-
+	if d.runtime != nil && d.module != nil {
+		return // 已初始化
+	}
+	d.runtime = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
+	// 注册host函数
+	_, err := d.runtime.NewHostModuleBuilder("env").
+		NewFunctionBuilder().WithFunc(d.logString).Export("log").
+		Instantiate(ctx)
+	if err != nil {
+		d.initErr = err
+		return
+	}
+	wasi_snapshot_preview1.MustInstantiate(ctx, d.runtime)
+	mod, err := d.runtime.InstantiateWithConfig(ctx, d.wasmBytes, wazero.NewModuleConfig().WithStartFunctions("_initialize"))
+	if err != nil {
+		d.initErr = err
+		return
+	}
+	d.module = mod
 }
 
 // CopyFile implements model.Driver.
@@ -77,26 +98,12 @@ func (d *wasmPluginDriver) Uploader(ctx context.Context, path []string, opt *fil
 }
 
 func (d *wasmPluginDriver) Name(ctx context.Context) string {
-	r := wazero.NewRuntime(ctx)
-	defer r.Close(ctx)
-	// Instantiate a Go-defined module named "env" that exports a function to
-	// log to the console.
-	_, err := r.NewHostModuleBuilder("env").
-		NewFunctionBuilder().WithFunc(d.logString).Export("log").
-		Instantiate(ctx)
-	if err != nil {
-		log.Panicln(err)
+	d.Init(ctx)
+	if d.initErr != nil {
+		log.Panicln(d.initErr)
 	}
-	wasi_snapshot_preview1.MustInstantiate(ctx, r)
-	// Instantiate a WebAssembly module that imports the "log" function defined
-	// in "env" and exports "memory" and functions we'll use in this example.
-	//localWasm ↓ replace with read from file if not using embed
-	mod, err := r.InstantiateWithConfig(ctx, d.wasmBytes, wazero.NewModuleConfig().WithStartFunctions("_initialize"))
-	if err != nil {
-		panic(err)
-	}
+	mod := d.module
 	name := mod.ExportedFunction("name")
-	// These are undocumented, but exported. See tinygo-org/tinygo#2788
 	malloc := mod.ExportedFunction("malloc")
 	free := mod.ExportedFunction("free")
 	results, err := malloc.Call(ctx, 128)
