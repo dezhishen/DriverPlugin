@@ -6,4 +6,5 @@ replace github.com/OpenListTeam/OpenList/v5 => ../OpenList
 
 require (
 	github.com/OpenListTeam/OpenList/v5 v5.0.0
+	github.com/tetratelabs/wazero v1.9.0
 )

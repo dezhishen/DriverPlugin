@@ -1,14 +1,19 @@
 package model
 
+import (
+	"context"
+	"log"
+)
+
 var _impl Driver
 
 func Registry(d Driver) {
 	_impl = d
 }
 
-func Name() string {
+func Name(ctx context.Context) string {
 	if _impl == nil {
-		return "OpenList"
+		log.Panicln("Driver plugin not registered")
 	}
-	return _impl.Name()
+	return _impl.Name(ctx)
 }
