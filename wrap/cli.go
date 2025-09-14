@@ -42,3 +42,11 @@ func Init(ctx context.Context) error {
 func Drop(ctx context.Context) error {
 	return _impl.Drop(ctx)
 }
+func List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
+	return _impl.List(ctx, dir, args)
+}
+
+// Link get url/filepath/reader of file
+func Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
+	return _impl.Link(ctx, file, args)
+}

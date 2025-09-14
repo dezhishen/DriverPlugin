@@ -1,8 +1,5 @@
 package exporter
 
-// #include <stdlib.h>
-import "C"
-
 import (
 	"runtime"
 	"unsafe"
@@ -11,15 +8,15 @@ import (
 )
 
 //go:wasmexport name
-func name(ptr uint32, length uint32) uint32 {
+func Name(ptr uint32, length uint32) uint32 {
 	s := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), length)
 	driverName := wrap.Name()
 	copy(s, driverName)
 	return uint32(len(driverName))
 }
 
-// log a message to the console using _log.
-func log(message string) {
+// Log a message to the console using _log.
+func Log(message string) {
 	ptr, size := stringToPtr(message)
 	_log(ptr, size)
 	runtime.KeepAlive(message) // keep message alive until ptr is no longer needed.

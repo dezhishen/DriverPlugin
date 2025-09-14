@@ -1,6 +1,7 @@
 package exporter
 
 // #include <stdlib.h>
+import "C"
 import "unsafe"
 
 // ptrToString returns a string from WebAssembly compatible numeric types
@@ -23,7 +24,7 @@ func stringToPtr(s string) (uint32, uint32) {
 // The pointer is not automatically managed by TinyGo hence it must be freed by the host.
 func stringToLeakedPtr(s string) (uint32, uint32) {
 	size := C.ulong(len(s))
-	ptr := unsafe.Pointer(C.malloc(size))
-	copy(unsafe.Slice((*byte)(ptr), size), s)
+	ptr := unsafe.Pointer(C.malloc(C.size_t(size)))
+	copy(unsafe.Slice((*byte)(ptr), uint32(size)), s)
 	return uint32(uintptr(ptr)), uint32(size)
 }
