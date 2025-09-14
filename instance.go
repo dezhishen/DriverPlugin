@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/OpenListTeam/OpenList/v5/layers/file"
+	"github.com/OpenListTeam/OpenList/v4/pkg/driver"
+	"github.com/OpenListTeam/OpenList/v4/pkg/model"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
 type WasmPluginDriver interface {
-	file.HostFileServer
 	Name(ctx context.Context) string
+	driver.Driver
 }
 
 type wasmPluginDriver struct {
@@ -24,22 +25,14 @@ type wasmPluginDriver struct {
 	initErr   error
 }
 
-var _ WasmPluginDriver = (*wasmPluginDriver)(nil)
-
-func (d *wasmPluginDriver) Close() {
-	if d.runtime != nil {
-		if err := d.runtime.Close(d.ctx); err != nil {
-			log.Println("Failed to close runtime:", err)
-		}
-		d.runtime = nil
-		d.module = nil
-	}
-}
-func (d *wasmPluginDriver) Init() {
+func (d *wasmPluginDriver) Init(ctx context.Context) error {
 	if d.runtime != nil && d.module != nil {
-		return // 已初始化
+		return nil // 已初始化
 	}
-	d.ctx = context.Background()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	d.ctx = ctx
 	d.runtime = wazero.NewRuntimeWithConfig(d.ctx, wazero.NewRuntimeConfigInterpreter())
 	// 注册host函数
 	_, err := d.runtime.NewHostModuleBuilder("env").
@@ -47,69 +40,27 @@ func (d *wasmPluginDriver) Init() {
 		Instantiate(d.ctx)
 	if err != nil {
 		d.initErr = err
-		return
+		return err
 	}
 	wasi_snapshot_preview1.MustInstantiate(d.ctx, d.runtime)
 	mod, err := d.runtime.InstantiateWithConfig(d.ctx, d.wasmBytes, wazero.NewModuleConfig().WithStartFunctions("_initialize"))
 	if err != nil {
 		d.initErr = err
-		return
+		return err
 	}
 	d.module = mod
+	//todo need call wasm init function
+	return nil
 }
 
-// CopyFile implements model.Driver.
-func (d *wasmPluginDriver) CopyFile(ctx context.Context, sources []string, targets []string) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
-}
-
-// Download implements model.Driver.
-func (d *wasmPluginDriver) Download(ctx context.Context, path []string, opt *file.DownloadOption) ([]*file.LinkFileObject, error) {
-	panic("unimplemented")
-}
-
-// FindFile implements model.Driver.
-func (d *wasmPluginDriver) FindFile(ctx context.Context, path []string, opt *file.FindFileOption) ([]*file.HostFileObject, error) {
-	panic("unimplemented")
-}
-
-// KillFile implements model.Driver.
-func (d *wasmPluginDriver) KillFile(ctx context.Context, path []string, opt *file.KillFileOption) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
-}
-
-// ListFile implements model.Driver.
-func (d *wasmPluginDriver) ListFile(ctx context.Context, path []string, opt *file.ListFileOption) ([]*file.HostFileObject, error) {
-	panic("unimplemented")
-}
-
-// MakeFile implements model.Driver.
-func (d *wasmPluginDriver) MakeFile(ctx context.Context, path []string, opt *file.MakeFileOption) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
-}
-
-// MakePath implements model.Driver.
-func (d *wasmPluginDriver) MakePath(ctx context.Context, path []string, opt *file.MakeFileOption) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
-}
-
-// MoveFile implements model.Driver.
-func (d *wasmPluginDriver) MoveFile(ctx context.Context, sources []string, targets []string) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
-}
-
-// NameFile implements model.Driver.
-func (d *wasmPluginDriver) NameFile(ctx context.Context, sources []string, targets []string) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
-}
-
-// Uploader implements model.Driver.
-func (d *wasmPluginDriver) Uploader(ctx context.Context, path []string, opt *file.UploaderOption) ([]*file.BackFileAction, error) {
-	panic("unimplemented")
+func NewWasmPluginDriver(wasmBytes []byte) *wasmPluginDriver {
+	return &wasmPluginDriver{
+		wasmBytes: wasmBytes,
+	}
 }
 
 func (d *wasmPluginDriver) Name(ctx context.Context) string {
-	d.Init()
+	d.Init(ctx)
 	if d.initErr != nil {
 		log.Panicln(d.initErr)
 	}
@@ -136,16 +87,70 @@ func (d *wasmPluginDriver) Name(ctx context.Context) string {
 	return string(nameBytes)
 }
 
-func NewWasmPluginDriver(wasmBytes []byte) *wasmPluginDriver {
-	return &wasmPluginDriver{
-		wasmBytes: wasmBytes,
-	}
-}
-
 func (d *wasmPluginDriver) logString(_ context.Context, m api.Module, offset, byteCount uint32) {
 	buf, ok := m.Memory().Read(offset, byteCount)
 	if !ok {
 		log.Panicf("Memory.Read(%d, %d) out of range", offset, byteCount)
 	}
 	fmt.Println(string(buf))
+}
+
+func (d *wasmPluginDriver) Close() {
+	if d.runtime != nil {
+		if err := d.runtime.Close(d.ctx); err != nil {
+			log.Println("Failed to close runtime:", err)
+		}
+		d.runtime = nil
+		d.module = nil
+	}
+}
+
+// 实现 driver.Driver 接口的其他方法
+var _ WasmPluginDriver = (*wasmPluginDriver)(nil)
+
+// Meta implements the Driver interface.
+
+// Config() Config
+// 	// GetStorage just get raw storage, no need to implement, because model.Storage have implemented
+// GetStorage() *model.Storage
+// SetStorage(model.Storage)
+// // GetAddition Additional is used for unmarshal of JSON, so need return pointer
+// GetAddition() Additional
+// // Init If already initialized, drop first
+// Init(ctx context.Context) error
+// Drop(ctx context.Context) error
+
+func (d *wasmPluginDriver) Config() driver.Config {
+	panic("not implemented")
+}
+
+func (d *wasmPluginDriver) GetStorage() *model.Storage {
+	return nil
+}
+
+func (d *wasmPluginDriver) SetStorage(storage model.Storage) {
+
+}
+
+func (d *wasmPluginDriver) GetAddition() driver.Additional {
+	return nil
+}
+
+func (d *wasmPluginDriver) Drop(ctx context.Context) error {
+	return nil
+}
+
+// // List files in the path
+// // if identify files by path, need to set ID with path,like path.Join(dir.GetID(), obj.GetName())
+// // if identify files by id, need to set ID with corresponding id
+// List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error)
+// // Link get url/filepath/reader of file
+// Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error)
+
+func (d *wasmPluginDriver) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
+	panic("not implemented")
+}
+
+func (d *wasmPluginDriver) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
+	panic("not implemented")
 }
