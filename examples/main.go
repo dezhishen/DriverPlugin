@@ -1,7 +1,7 @@
-package wasm
+package main
 
 import (
-	"github.com/OpenListTeam/OpenList/v4/driverplugin/local"
+	"github.com/dezhishen/DriverPlugin/examples/local"
 	"github.com/dezhishen/DriverPlugin/wrap"
 )
 

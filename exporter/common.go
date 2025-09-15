@@ -2,17 +2,14 @@ package exporter
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/dezhishen/DriverPlugin/wrap"
 )
 
 //go:wasmexport name
-func Name(ptr uint32, length uint32) uint32 {
-	s := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), length)
+func Name() (uint32, uint32) {
 	driverName := wrap.Name()
-	copy(s, driverName)
-	return uint32(len(driverName))
+	return stringToPtr(driverName)
 }
 
 // Log a message to the console using _log.
